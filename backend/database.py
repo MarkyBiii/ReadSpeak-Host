@@ -4,9 +4,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
 
 # localhost
-URL_DATABASE = 'postgresql://postgres:1234@localhost:5432/ReadSpeakDB'
+# URL_DATABASE = 'postgresql://postgres:1234@localhost:5432/ReadSpeakDB'
 # supabase
-# URL_DATABASE = 'postgresql://postgres.zzcbfheemrrkfoflzblg:Klxoht0BqqQCdYX7@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres'
+URL_DATABASE = 'postgresql://postgres.zzcbfheemrrkfoflzblg:Klxoht0BqqQCdYX7@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres'
 # render
 # URL_DATABASE = 'postgresql://read_user:Su3ESCItyqSKI5wuEvuzjOMAtVHBmH5W@dpg-cv95oql2ng1s73d0d63g-a.singapore-postgres.render.com/read'
 
