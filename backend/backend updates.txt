@@ -1,0 +1,92 @@
+10/1/2024
+May database na
+Added basic CRUD functions for assessments
+Updated and Added necessary API endpoints for the CRUD functions
+
+Instructions:
+install postgres: https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
+setup postgres - make sure the username is localhost and password is 1234, the rest is default. also close the stack builder if it pops Up
+merge the branches
+open terminal(make sure the venv is activated) and run: pip install sqlalchemy psycopg2 alembic
+once installed run: python backend/main.py
+once online you can go to localhost:8000/docs for the documetation
+you can test and run each endpoint in the documentation if you want
+
+10/9/2024
+added login and register
+added JWT authentication
+added API endpoints for all authentication
+instructions:
+pip install bcrypt
+
+10/15/2024
+added submission endpoints
+added database backups
+instructions to import database:
+right click ReadSpeakDB
+click restore
+click the folder button at the right of the filename input
+select sql file in the drop down for file type in the popup window
+select ReadSpeakDB.sql
+go to query options tab
+enable Clean before restore option
+click restore
+
+10/17/2024
+integrated cloudinary for file storage of audio
+updated the submission endpoint to include the upload to cloudinary and transcription of audio
+added assessment types
+instruction:
+do pip install cloudinary
+
+10/22/2024
+added email verification for user registration
+changed login requirement from username to email (ps: although username nakalagay sa api, email yung hinihingi nun)
+updated database: user table now has date created, verified and date verified
+instruction: 
+do pip install fastapi-mail itsdangerous
+import new database
+
+11/03/2024
+added CRUD for comprehension assessments except editing
+changed some api endpoints to make them more clear
+instructions:
+instead of importing the database just do this:
+open terminal, make sure venv is running
+type: alembic revision --autogenerate -m "any message"
+enter
+type: alembic upgrade head
+the database should upgrade its structure to the latest version, refresh it to check. 
+
+11/11/2024
+moved scoring of phonemes to the backend
+instruction:
+pip install jiwer
+
+11/11/2024 part 2
+improved scoring of phonemes
+changes in database and fixes to include the raw ungrouped phonemes, this is used for scoring
+
+instructions:
+instead of importing the database just do this:
+open terminal, make sure venv is running
+type: alembic revision --autogenerate -m "any message"
+enter
+type: alembic upgrade head
+the database should upgrade its structure to the latest version, refresh it to check. 
+
+todo:
+dockerize
+put scoring in both assessments at the backend (phoneme assessment done) 
+
+11/18/2024
+fixed comprehension assessment editing
+added logout
+changes in database to include logout tokens blacklist
+instructions:
+instead of importing the database just do this:
+open terminal, make sure venv is running
+type: alembic revision --autogenerate -m "any message"
+enter
+type: alembic upgrade head
+the database should upgrade its structure to the latest version, refresh it to check. 
