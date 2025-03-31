@@ -20,10 +20,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# cloudinary.config( 
+#     cloud_name = "dxijt2kwv", 
+#     api_key = "219654775259177", 
+#     api_secret = "iDtYiBSPmAx8ZE5DMxtTNS8s_zQ", # Click 'View API Keys' above to copy your API secret
+#     secure=True
+# )
+
 cloudinary.config( 
-    cloud_name = "dxijt2kwv", 
-    api_key = "219654775259177", 
-    api_secret = "iDtYiBSPmAx8ZE5DMxtTNS8s_zQ", # Click 'View API Keys' above to copy your API secret
+    cloud_name = "dxmjz8dkp", 
+    api_key = "985598938874758", 
+    api_secret = "U-RKTi_wPw6uOjayoF8gZGDQG24", # Click 'View API Keys' above to copy your API secret
     secure=True
 )
 
