@@ -193,6 +193,7 @@ async def submit_phoneme_assessment(db: db_dependency, student_id: int,
 @router.post("/submit/comprehension/")
 async def submit_comprehension_assessment(db: db_dependency, submission: ComprehensionSubmission):
   db_user = db.query(models.User).filter(models.User.user_id == submission.student_id).first()
+  db_stage = db.query(models.Stages).filter(models.Stages.stage_id == submission.stage_id).first()
   if not db_user:
     raise HTTPException(status_code=404, detail='User is not found')
   db_submission = models.ComprehensionAssessmentHistory(
@@ -208,7 +209,7 @@ async def submit_comprehension_assessment(db: db_dependency, submission: Compreh
   
   if(submission.score > 60):
     advance_stage(db_user, db)
-  elif db_user.current_stage < submission.stage_sequence:
+  elif db_user.current_stage < db_stage.stage_sequence:
     raise HTTPException(status_code=400, detail='Stage requirements not met')
   
 def check_stage_completion(student_id: int, stage: models.Stages, db:db_dependency) -> bool:
