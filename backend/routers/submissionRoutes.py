@@ -15,6 +15,8 @@ import numpy as np
 from scipy.signal import medfilt
 import soundfile as sf
 import scipy.fftpack as fft
+import pytz
+import re
 
 router = APIRouter(
     prefix="/submissions",
@@ -22,6 +24,8 @@ router = APIRouter(
 )
 
 db_dependency = Annotated[Session, Depends(get_db)]
+
+philippine_timezone = pytz.timezone("Asia/Manila")
 
 class ComprehensionChoices(BaseModel):
   choice_id: Optional[int] = 0
@@ -122,7 +126,7 @@ async def submit_phoneme_assessment(db: db_dependency, student_id: int,
     assessment_id = assessment_id,
     phoneme_output =  grouped_phonemes,
     score = round(score_test*100, 2),
-    date_taken = datetime.now(timezone.utc),
+    date_taken = datetime.now(pytz.timezone("Asia/Manila")),
     audio_url = upload_result["secure_url"],
     raw_phoneme_output = transcription,
     audio_public_id = upload_result["public_id"],
@@ -155,16 +159,33 @@ async def submit_phoneme_assessment(db: db_dependency, student_id: int,
       word_index += 1
 
     # Add practice words if any
+  existing_practice_words = [set(word.words)
+                             for word in db.query(models.PracticeWords).filter(models.PracticeWords.student_id == student_id).all()]
   if practice_words:
       try:
         for word in practice_words:
+          cleaned_word = clean_word(word)
+          word_list = list(cleaned_word)
+          word_set = set(word_list)
+          # print(word_list)
+          # print(word_set)
+          if word_set in existing_practice_words:
+            continue
+          
+          # existing_practice_word = db.query(models.PracticeWords).filter(
+          #   models.PracticeWords.student_id == student_id,
+          #   models.PracticeWords.assessment_id == assessment_id,
+          #   models.PracticeWords.words == list(word_phonemes)
+          # ).first()
+          # if existing_practice_word:
+          #   continue
           text, raw_phoneme = textToPhoneme(word) 
           create_practice_words_model = models.PracticeWords(
-              student_id=student_id,
-              assessment_id=assessment_id,
-              words=word,
-              date_added=datetime.now(timezone.utc),
-              raw_phoneme_content = raw_phoneme
+            student_id=student_id,
+            assessment_id=assessment_id,
+            words=word_list,
+            date_added=datetime.now(pytz.timezone("Asia/Manila")),
+            raw_phoneme_content = raw_phoneme
           )
 
           db.add(create_practice_words_model)
@@ -190,6 +211,9 @@ async def submit_phoneme_assessment(db: db_dependency, student_id: int,
   # Return the response
   return JSONResponse(response_data)
 
+def clean_word(word):
+  return re.sub(r"[^\w\s'-]", '', word)
+
 @router.post("/submit/comprehension/")
 async def submit_comprehension_assessment(db: db_dependency, submission: ComprehensionSubmission):
   db_user = db.query(models.User).filter(models.User.user_id == submission.student_id).first()
@@ -201,7 +225,7 @@ async def submit_comprehension_assessment(db: db_dependency, submission: Compreh
     assessment_id = submission.assessment_id,
     answers = submission.answers_id,
     score = submission.score,
-    date_taken = datetime.now(timezone.utc),
+    date_taken = datetime.now(pytz.timezone("Asia/Manila")),
     stage_id = submission.stage_id
   )
   db.add(db_submission)
@@ -277,7 +301,7 @@ async def submit_practice_word(db: db_dependency,
     practice_id = practice_id,
     phoneme_output = audioPhonemes,
     score = round(score_test*100, 2),
-    date_taken = datetime.now(timezone.utc),
+    date_taken = datetime.now(pytz.timezone("Asia/Manila")),
     audio_url = upload_result["secure_url"],
     audio_public_id = upload_result["public_id"],
     raw_phoneme_output = transcription,
@@ -312,10 +336,11 @@ async def get_specific_submission(sub_id: int, db: db_dependency):
   assessment = db.query(models.PronunciationAssessment).join(models.AssessmentHistory).filter(models.AssessmentHistory.history_id == sub_id).first()
   if not history:
     raise HTTPException(status_code=404, detail='Submission is not found')
+  date_taken_ph = history.date_taken.astimezone(philippine_timezone)
   result = PhonemeSubmission(student_id=history.student_id,  history_id=history.history_id, score=history.score, assessment_id=history.assessment_id,
                              assessment_title=assessment.assessment_title, text_content=assessment.text_content, 
                              audio_url=history.audio_url, phoneme_content=assessment.phoneme_content,
-                            phoneme_output=history.phoneme_output, date_taken=history.date_taken)
+                            phoneme_output=history.phoneme_output, date_taken=date_taken_ph)
   return result
 
 @router.get("/users/{userId}/", response_model=list[StudentHistory])
@@ -326,7 +351,8 @@ async def get_users_submission(userId: int, db: db_dependency):
   result =[]
   for history in history:
     assessment = db.query(models.PronunciationAssessment).join(models.AssessmentHistory).filter(models.AssessmentHistory.student_id == userId, models.PronunciationAssessment.assessment_id == history.assessment_id).first()
-    result.append(StudentHistory(student_id=userId, history_id=history.history_id, assessment_id=assessment.assessment_id, score=history.score, assessment_title=assessment.assessment_title, date_taken=history.date_taken))
+    date_taken_ph = history.date_taken.astimezone(philippine_timezone)
+    result.append(StudentHistory(student_id=userId, history_id=history.history_id, assessment_id=assessment.assessment_id, score=history.score, assessment_title=assessment.assessment_title, date_taken=date_taken_ph))
   return result
 
 @router.get("/phonemes")
@@ -349,6 +375,7 @@ async def get_specific_comprehension_submission(sub_id: int, db: db_dependency):
   assessment = db.query(models.ComprehensionAssessment).join(models.ComprehensionAssessmentHistory).filter(models.ComprehensionAssessmentHistory.history_id == sub_id).first()
   if not history:
     raise HTTPException(status_code=404, detail='Submission is not found')
+  date_taken_ph = history.date_taken.astimezone(philippine_timezone)
   questions = db.query(models.ComprehensionAssessmentQuestion).filter(models.ComprehensionAssessmentQuestion.comp_assessment_id == assessment.comp_assessment_id).all()
   questionArr = []
   for question in questions:
@@ -364,7 +391,7 @@ async def get_specific_comprehension_submission(sub_id: int, db: db_dependency):
                                           score=history.score, 
                                           assessment_id=assessment.comp_assessment_id, 
                                           assessment_title=assessment.assessment_title, 
-                                          date_taken=history.date_taken, 
+                                          date_taken=date_taken_ph, 
                                           questions=questionArr, 
                                           answers=history.answers)
   return result
@@ -375,9 +402,11 @@ async def get_users_comprehension_submission(userId: int, db: db_dependency):
   if not history:
     raise HTTPException(status_code=404, detail='No submissions found')
   result =[]
+  
   for history2 in history:
     assessment = db.query(models.ComprehensionAssessment).join(models.ComprehensionAssessmentHistory).filter(models.ComprehensionAssessmentHistory.student_id == userId, models.ComprehensionAssessment.comp_assessment_id == history2.assessment_id).first()
-    result.append(StudentHistory(student_id=userId, history_id=history2.history_id, assessment_id=assessment.comp_assessment_id, score=history2.score, assessment_title=assessment.assessment_title, date_taken=history2.date_taken))
+    date_taken_ph = history2.date_taken.astimezone(philippine_timezone)
+    result.append(StudentHistory(student_id=userId, history_id=history2.history_id, assessment_id=assessment.comp_assessment_id, score=history2.score, assessment_title=assessment.assessment_title, date_taken=date_taken_ph))
   return result
 
 #get submission history of specific assessment
@@ -386,11 +415,16 @@ async def get_specific_assessment_submission_history(assessment_id: int, db: db_
   result = db.query(models.AssessmentHistory).filter(models.AssessmentHistory.assessment_id == assessment_id).all()
   if not result:
     raise HTTPException(status_code=404, detail='No Submissions')
+  for entry in result:
+    entry.date_taken = entry.date_taken.astimezone(philippine_timezone)
   return result
 
 @router.get("/comprehension/{assessment_id}")
 async def get_specific_comprehension_assessment_submission_history(assessment_id: int, db: db_dependency):
+  
   result = db.query(models.ComprehensionAssessmentHistory).filter(models.ComprehensionAssessmentHistory.assessment_id == assessment_id).all()
   if not result:
     raise HTTPException(status_code=404, detail='No Submissions')
+  for entry in result:
+    entry.date_taken = entry.date_taken.astimezone(philippine_timezone)
   return result
