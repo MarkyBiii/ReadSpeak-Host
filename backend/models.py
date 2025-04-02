@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Float, ARRAY
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Float, ARRAY, TIMESTAMP
 from sqlalchemy.orm import relationship, backref
 try:
     from database import Base
@@ -14,9 +14,9 @@ class User(Base):
     email = Column(String, index = True)
     role = Column(String, index = True)
     hashed_password = Column(String)
-    date_created = Column(DateTime, index = True)
+    date_created = Column(TIMESTAMP(timezone=True), index=True)
     is_verified = Column(Boolean, index = True)
-    date_verified = Column(DateTime, index = True)
+    date_verified = Column(TIMESTAMP(timezone=True), index=True)
     gender = Column(String, index = True)
     level = Column(Integer, ForeignKey("pronunciation_assessment_types.type_id"), nullable=True)
     section_id = Column(Integer, ForeignKey("sections.section_id", ondelete="CASCADE"), nullable=True)
@@ -94,21 +94,21 @@ class PracticeWords(Base):
     __tablename__ = 'practice_words'
     
     practice_id = Column(Integer, primary_key = True, index = True)
-    student_id = Column(Integer, ForeignKey("users.user_id"))
-    assessment_id = Column(Integer, ForeignKey("pronunciation_assessments.assessment_id"))
+    student_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"))
+    assessment_id = Column(Integer, ForeignKey("pronunciation_assessments.assessment_id", ondelete="CASCADE"))
     words = Column(ARRAY(String), index = True)
-    date_added = Column(DateTime, index=True)
+    date_added = Column(TIMESTAMP(timezone=True), index=True)
     is_completed = Column(Boolean, default=False, index = True)
     raw_phoneme_content = Column(ARRAY(String, dimensions=1), index = True)
     
 class PracticeWordSubmissionHistory(Base):
     __tablename__ = 'practice_submission_history'
     history_id = Column(Integer, primary_key=True, index=True)
-    student_id = Column(Integer, ForeignKey("users.user_id"))
-    practice_id = Column(Integer, ForeignKey("practice_words.practice_id"))
+    student_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"))
+    practice_id = Column(Integer, ForeignKey("practice_words.practice_id", ondelete="CASCADE"))
     phoneme_output = Column(ARRAY(String), index=True)
     score = Column(Float, index=True)
-    date_taken = Column(DateTime, index=True)
+    date_taken = Column(TIMESTAMP(timezone=True), index=True)
     audio_url = Column(String, index=True)
     audio_public_id = Column(String, index=True)
     raw_phoneme_output = Column(ARRAY(String), index=True)
@@ -118,27 +118,27 @@ class AssessmentHistory(Base):
     __tablename__ = 'phoneme_assessment_history'
     
     history_id = Column(Integer, primary_key = True, index = True)
-    student_id = Column(Integer, ForeignKey("users.user_id"), nullable = True)
-    assessment_id = Column(Integer, ForeignKey("pronunciation_assessments.assessment_id"))
+    student_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable = True)
+    assessment_id = Column(Integer, ForeignKey("pronunciation_assessments.assessment_id", ondelete="CASCADE"))
     raw_phoneme_output = Column(ARRAY(String), index = True)
     phoneme_output = Column(ARRAY(String), index = True)
     score = Column(Float, index = True)
-    date_taken = Column(DateTime, index = True)
+    date_taken = Column(TIMESTAMP(timezone=True), index=True)
     audio_url = Column(String, index=True)
     audio_public_id = Column(String, index=True)
-    stage_id = Column(Integer, ForeignKey("stages.stage_id"), nullable=True)
+    stage_id = Column(Integer, ForeignKey("stages.stage_id", ondelete="CASCADE"), nullable=True)
     duration = Column(Float, index=True)
 
 class ComprehensionAssessmentHistory(Base):
     __tablename__ = 'comprehension_assessment_history'
     
     history_id = Column(Integer, primary_key = True, index = True)
-    student_id = Column(Integer, ForeignKey("users.user_id"), nullable = True)
-    assessment_id = Column(Integer, ForeignKey("comprehension_assessments.comp_assessment_id"))
+    student_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable = True)
+    assessment_id = Column(Integer, ForeignKey("comprehension_assessments.comp_assessment_id", ondelete="CASCADE"))
     answers = Column(ARRAY(Integer), index = True)
     score = Column(Float, index = True)
-    date_taken = Column(DateTime, index = True) 
-    stage_id = Column(Integer, ForeignKey("stages.stage_id"), nullable=True)
+    date_taken = Column(TIMESTAMP(timezone=True), index=True)
+    stage_id = Column(Integer, ForeignKey("stages.stage_id", ondelete="CASCADE"), nullable=True)
 
 class ExpiredTokens(Base):
     __tablename__ = 'expired_tokens'

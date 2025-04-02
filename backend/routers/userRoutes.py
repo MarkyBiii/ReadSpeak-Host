@@ -25,6 +25,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from io import BytesIO
 import os
+import pytz
 
 router = APIRouter(
     prefix="/user",
@@ -53,12 +54,28 @@ conf = ConnectionConfig(
 
 fm = FastMail(conf)
 
+philippine_timezone = pytz.timezone("Asia/Manila")
+
 class UserCreate(BaseModel):
   username: str
   password: str
   email: str
   role: str
-  
+
+class UserResponse(BaseModel):
+  user_id: int
+  name: str
+  email: str
+  role: str
+  date_created: datetime
+  is_verified: bool
+  level: Optional[int] = None
+  current_stage: Optional[int] = None
+  first_login: Optional[bool] = None
+  date_verified: Optional[datetime] = None
+  gender: Optional[str] = None
+  section_id: Optional[int] = None
+
 class StudentCreate(BaseModel):
   username: str
   password: str
@@ -125,7 +142,7 @@ async def register_user(db: db_dependency, create_user_request: UserCreate):
     hashed_password = pwd_context.hash(create_user_request.password),
     email = create_user_request.email,
     role = create_user_request.role,
-    date_created = datetime.now(timezone.utc),
+    date_created = datetime.now(pytz.timezone("Asia/Manila")),
     is_verified = False
   )
   
@@ -134,41 +151,41 @@ async def register_user(db: db_dependency, create_user_request: UserCreate):
   
   token = create_url_safe_token({"email": create_user_request.email})
   #make this dynamic by storing link as variable especially once hosted
-  link = f"http://localhost:8000/verify-email/{token}"
+#   link = f"http://localhost:8000/verify-email/{token}"
   
-  html_message = f""" 
-  <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to ReadSpeak</title>
-</head>
-<body style="font-family: Arial, sans-serif; background-color: #f0f4fc; margin: 0; padding: 0; text-align: center;">
-    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); overflow: hidden; padding: 20px; text-align: center;">
-        <div style="color:#ffffff; background-color: #4CAF50; color: white; padding: 15px; border-top-left-radius: 8px; border-top-right-radius: 8px;">
-            <h1>Welcome to ReadSpeak</h1>
-        </div>
-        <div style="padding: 20px;">
-            <h2>Hello!</h2>
-            <p>Thank you for joining ReadSpeak. We're excited to have you on board!</p>
-            <p>To get verified, please click the button below:</p>
-            <div style="margin: 20px auto;">
-                <a href="{link}" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; font-size: 16px;">Verify Account</a>
-            </div>
-            <p>If you have any questions, feel free to reach out to us!</p>
-        </div>
-        <div style="background-color: #f1f1f1; padding: 10px; color: #777; font-size: 12px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
-            <p>&copy; 2024 ReadSpeak. All rights reserved.</p>
-        </div>
-    </div>
-</body>
-</html>
-  """
+#   html_message = f""" 
+#   <!DOCTYPE html>
+# <html lang="en">
+# <head>
+#     <meta charset="UTF-8">
+#     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+#     <title>Welcome to ReadSpeak</title>
+# </head>
+# <body style="font-family: Arial, sans-serif; background-color: #f0f4fc; margin: 0; padding: 0; text-align: center;">
+#     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); overflow: hidden; padding: 20px; text-align: center;">
+#         <div style="color:#ffffff; background-color: #4CAF50; color: white; padding: 15px; border-top-left-radius: 8px; border-top-right-radius: 8px;">
+#             <h1>Welcome to ReadSpeak</h1>
+#         </div>
+#         <div style="padding: 20px;">
+#             <h2>Hello!</h2>
+#             <p>Thank you for joining ReadSpeak. We're excited to have you on board!</p>
+#             <p>To get verified, please click the button below:</p>
+#             <div style="margin: 20px auto;">
+#                 <a href="{link}" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; font-size: 16px;">Verify Account</a>
+#             </div>
+#             <p>If you have any questions, feel free to reach out to us!</p>
+#         </div>
+#         <div style="background-color: #f1f1f1; padding: 10px; color: #777; font-size: 12px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
+#             <p>&copy; 2024 ReadSpeak. All rights reserved.</p>
+#         </div>
+#     </div>
+# </body>
+# </html>
+#   """
 
-  message = send_email(recipients=[create_user_request.email], subject="Verify Your Email", body=html_message)
+#   message = send_email(recipients=[create_user_request.email], subject="Verify Your Email", body=html_message)
     
-  await fm.send_message(message)
+#   await fm.send_message(message)
   
   return {"message": "Email sent successfully"}
 
@@ -248,9 +265,9 @@ def authenticate_user(email: str,  password: str, db: db_dependency):
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
   to_encode = data.copy()
   if expires_delta:
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = datetime.now(pytz.timezone("Asia/Manila")) + expires_delta
   else:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    expire = datetime.now(pytz.timezone("Asia/Manila")) + timedelta(minutes=15)
   to_encode.update({'exp': expire})
   encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
   return encoded_jwt
@@ -292,11 +309,12 @@ async def logout_user(token: str, db: db_dependency):
 
 #user funcs
 #temporary solution
-@router.get("/me/{userId}")
+@router.get("/me/{userId}", response_model=UserResponse)
 async def user(userId: int, db: db_dependency):
   result = db.query(models.User).filter(models.User.user_id == userId).first()
   if not result:
     raise HTTPException(status_code=404, detail='User is not found')
+  result.date_created = result.date_created.astimezone(philippine_timezone)
   return result
 
 # @router.get("/mev2/")
@@ -316,7 +334,7 @@ async def add_student_account(db:db_dependency, user: StudentCreate):
     hashed_password = pwd_context.hash(user.password),
     email = user.email,
     role = 'student',
-    date_created = datetime.now(timezone.utc),
+    date_created = datetime.now(pytz.timezone("Asia/Manila")),
     is_verified = False,
     level = user.level,
     section_id = user.section,
@@ -339,24 +357,39 @@ async def download_student_template():
     return FileResponse(
         path=template_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename="student_upload_template.xlsx" #this is what the client sees as the downloaded file name
+        filename="student_list_template.xlsx" #this is what the client sees as the downloaded file name
     )
   
 @router.post("/upload/students/")
 async def upload_students(section_id: int, db: db_dependency, file: UploadFile = File(...) ):
   
-  if not file.filename.endswith(".xlsx"):
-    raise HTTPException(status_code=400, detail="Invalid file type. Only .xslx files are allowed")
+  if not (file.filename.endswith(".xlsx") or file.filename.endswith(".csv")):
+    raise HTTPException(status_code=400, detail="Invalid file type. Only .xslx and .csv files are allowed")
   
   try:
-    df = pd.read_excel(file.file)
+    level_to_id = {
+      "Emerging Reader": 1,
+      "Developing Reader": 2,
+      "Transitioning Reader": 3,
+      "Reading at Grade Level Reader": 4
+    }
+    
+    if file.filename.endswith(".xlsx"):
+      df = pd.read_excel(file.file)
+    elif file.filename.endswith(".csv"):
+      df = pd.read_csv(file.file)
     new_students = []
     for index, row in df.iterrows():
-      name = row["name"]
-      level = row["level"]
-      gender = row["gender"]
+      name = row["Name"]
+      level = row["Level"]
+      gender = row["Gender"]
+      password = str(row["Password"])
       
-      password = generate_easy_password()
+      level_id = level_to_id.get(level, None)
+      
+      if level_id is None:
+        raise HTTPException(status_code=400, detail=f"Invalid level '{level}' for student '{name}'")
+      
       email = f"{name.lower().replace(' ','_')}@readspeak.com"
       
       #if duplicate
@@ -368,9 +401,9 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
         hashed_password=pwd_context.hash(password),
         email=email,
         role='student',
-        date_created=datetime.now(timezone.utc),
+        date_created=datetime.now(pytz.timezone("Asia/Manila")),
         is_verified=False,
-        level=level,
+        level=level_id,
         gender=gender,
         current_stage=1,
         section_id=section_id,
@@ -380,12 +413,12 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
       db.add(db_students)
       student_response_data = {"name":name, "email":email, "password":password, "level":level, "gender":gender}
       print(f"Student data: {student_response_data}") #Debug print
-      new_students.append(StudentResponse(name=name, email=email, password=password, level=level, gender=gender))
+      new_students.append(StudentResponse(name=name, email=email, password=password, level=level_id, gender=gender))
       
     db.commit()
 
     output = BytesIO()
-    frame_table = Frame(50, 50, letter[0] - 100, letter[1] - 150)  # Main frame for table
+    frame_table = Frame(50, 50, letter[0] - 100, letter[1] - 150)
 
     def add_footer(canvas, doc):
       canvas.saveState()
@@ -405,13 +438,14 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
                          ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                          ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                          ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                         ('BACKGROUND', (0, 1), (-1, -1), colors.beige)])
+                         ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                        ('FONTSIZE', (0, 1), (-1, -1), 12)])
     table.setStyle(style)
     
     styles = getSampleStyleSheet()
     notice_style = styles['Normal']
     notice_style.alignment = 1  # Center alignment
-    generation_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    generation_date = datetime.now(pytz.timezone("Asia/Manila")).strftime("%B %d, %Y, %H:%M %p")
     notice_text = f"Generation Notice: This report was automatically generated by the ReadSpeak system on {generation_date}."
     notice = Paragraph(notice_text, notice_style)
     
@@ -430,9 +464,9 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
     db.rollback()
     raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
-def generate_easy_password(length=8):
-    characters = string.ascii_lowercase + string.digits
-    return ''.join(random.choice(characters) for i in range(length))
+# def generate_easy_password(length=8):
+#     characters = string.ascii_lowercase + string.digits
+#     return ''.join(random.choice(characters) for i in range(length))
 
 # @router.get("/download/pdf/")
 # async def download_pdf(students: List[StudentResponse]):

@@ -8,16 +8,16 @@ import librosa
 
 #AI model stuff
 # load model and processor for phonemes
-# processor = Wav2Vec2Processor.from_pretrained("./model")
-# model = Wav2Vec2ForCTC.from_pretrained("./model")
-processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-lv-60-espeak-cv-ft")
-model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-lv-60-espeak-cv-ft")
+processor = Wav2Vec2Processor.from_pretrained("./model")
+model = Wav2Vec2ForCTC.from_pretrained("./model")
+# processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-lv-60-espeak-cv-ft")
+# model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-lv-60-espeak-cv-ft")
 
 # # load model and processor for words
-# processor2 = AutoProcessor.from_pretrained("./model2")
-# model2 = AutoModelForCTC.from_pretrained("./model2")
-processor2 = AutoProcessor.from_pretrained("facebook/wav2vec2-large-960h-lv60-self")
-model2 = AutoModelForCTC.from_pretrained("facebook/wav2vec2-large-960h-lv60-self")
+processor2 = AutoProcessor.from_pretrained("./model2")
+model2 = AutoModelForCTC.from_pretrained("./model2")
+# processor2 = AutoProcessor.from_pretrained("facebook/wav2vec2-large-960h-lv60-self")
+# model2 = AutoModelForCTC.from_pretrained("facebook/wav2vec2-large-960h-lv60-self")
 sr = processor.feature_extractor.sampling_rate
 
 #todo

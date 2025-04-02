@@ -199,7 +199,12 @@ async def edit_assessment(assessment_id: int, assessment_update: Assessment, db:
   
 @router.put("/delete/{assessment_id}")
 async def delete_assessment(assessment_id: int, db: db_dependency):
+  stage_exists = db.query(models.Stages).filter(models.Stages.pronunciation_assessment_id == assessment_id).first()
+  if stage_exists:
+    raise HTTPException(status_code=400, detail="Cannot delete assessment, it is assigned to a stage.")
+  
   db_assessment = db.query(models.PronunciationAssessment).filter(models.PronunciationAssessment.assessment_id == assessment_id).first()
+
   if not db_assessment:
     raise HTTPException(status_code=404, detail='Assessment is not found')
   db.delete(db_assessment)
@@ -254,6 +259,10 @@ async def edit_comprehension_assessment(assessment_id: int, assessment_update: C
 
 @router.put("/comprehension/delete/{assessment_id}")
 async def delete_comprehension_assessment(assessment_id: int, db: db_dependency):
+  stage_exists = db.query(models.Stages).filter(models.Stages.comp_assessment_id == assessment_id).first()
+  if stage_exists:
+    raise HTTPException(status_code=400, detail="Cannot delete comprehension assessment, it is assigned to a stage.")
+
   db_assessment = db.query(models.ComprehensionAssessment).filter(models.ComprehensionAssessment.comp_assessment_id == assessment_id).first()
   if not db_assessment:
     raise HTTPException(status_code=404, detail='Assessment is not found')

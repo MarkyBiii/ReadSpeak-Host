@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 nohup.out
 venv/
+__pycache__/
+*.pyc

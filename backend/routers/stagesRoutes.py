@@ -44,6 +44,7 @@ class Attempt(BaseModel):
     assessment_id: int
     score: float
     date_taken: datetime
+    attempt_type: str
 
 class StageAttempts(BaseModel):
     stage_id: int
@@ -151,6 +152,7 @@ async def get_student_stage_progress(student_id: int, db: db_dependency):
               assessment_id=attempt.assessment_id,
               score=attempt.score,
               date_taken=attempt.date_taken,
+              attempt_type="Pronunciation"
           )
       })
   for attempt in comprehension_attempts:
@@ -162,6 +164,7 @@ async def get_student_stage_progress(student_id: int, db: db_dependency):
               assessment_id=attempt.assessment_id,
               score=attempt.score,
               date_taken=attempt.date_taken,
+              attempt_type="Comprehension"
           )
       })
   # Group attempts by stage
