@@ -17,7 +17,7 @@ import soundfile as sf
 import scipy.fftpack as fft
 import pytz
 import re
-
+import noisereduce as nr
 router = APIRouter(
     prefix="/submissions",
     tags=["Submissions"]
@@ -107,16 +107,43 @@ async def submit_phoneme_assessment(db: db_dependency, student_id: int,
     mask = medfilt(mask, kernel_size=(1,5))
     S_clean = S_full * mask
     y_clean = librosa.istft(S_clean * phase)
-    inputs = processor(y_clean, return_tensors="pt", padding=True)
-    audioPhonemes, char_offsets, transcription = audioToPhoneme(inputs)
-    word_offsets = wordOffsetGet(inputs)
+    y_clean2 = nr.reduce_noise(y=input_values, sr=sr, stationary=True)
+    inputsMedfilt = processor(y_clean, return_tensors="pt", padding=True)
+    inputsNoFilter = processor(input_values, return_tensors="pt", padding=True)
+    inputsNoiseReduce = processor(y_clean2, return_tensors="pt", padding=True)
+    # inputs = processor(y_clean, return_tensors="pt", padding=True)
+    phonem1, offset, predicted_phonemes = audioToPhoneme(inputsMedfilt)
+    phonem2, offset2, predicted_phonemes2 = audioToPhoneme(inputsNoFilter)
+    phonem3, offset3, predicted_phonemes3 = audioToPhoneme(inputsNoiseReduce)
+    score_test1 = 1-wer(' '.join(text_phonemes), ' '.join(predicted_phonemes))
+    score_test2 = 1-wer(' '.join(text_phonemes), ' '.join(predicted_phonemes2))
+    score_test3 = 1-wer(' '.join(text_phonemes), ' '.join(predicted_phonemes3))
+    best_score = max(score_test1, score_test2, score_test3)
+    if best_score == score_test1:
+        # best_method = "Median Filtering"
+        word_offsets = wordOffsetGet(inputsMedfilt)
+        audioPhonemes = phonem1
+        char_offsets = offset
+        transcription = predicted_phonemes
+    elif best_score == score_test2:
+        # best_method = "No Filter (Raw Audio)"
+        word_offsets = wordOffsetGet(inputsNoFilter)
+        audioPhonemes = phonem2
+        char_offsets = offset2
+        transcription = predicted_phonemes2
+    elif best_score == score_test3:
+        # best_method = "NoiseReduce"
+        word_offsets = wordOffsetGet(inputsNoiseReduce)
+        audioPhonemes = phonem3
+        char_offsets = offset3
+        transcription = predicted_phonemes3
+    
     grouped_phonemes = groupPhonemes(audioPhonemes, word_offsets, char_offsets)
     duration = librosa.get_duration(y=input_values, sr=sr)
 #     print(' '.join(transcription))
 #     print(' '.join(text_phonemes))
-    score_test = 1 - wer(' '.join(text_phonemes), ' '.join(transcription))
-    if score_test < 0:
-      score_test = 0
+    if best_score < 0:
+      best_score = 0
     # print(score_test)
   except Exception as e:
     raise HTTPException(status_code=500, detail=f"Error processing audio file: {str(e)}")
@@ -125,7 +152,7 @@ async def submit_phoneme_assessment(db: db_dependency, student_id: int,
     student_id = student_id,
     assessment_id = assessment_id,
     phoneme_output =  grouped_phonemes,
-    score = round(score_test*100, 2),
+    score = round(best_score*100, 2),
     date_taken = datetime.now(pytz.timezone("Asia/Manila")),
     audio_url = upload_result["secure_url"],
     raw_phoneme_output = transcription,
@@ -138,7 +165,7 @@ async def submit_phoneme_assessment(db: db_dependency, student_id: int,
   db.commit()
   
   #stage_is_completed = check_stage_completion(student_id, db_stage, db)
-  if round(score_test*100, 2)>=60 and db_user.current_stage == db_stage.stage_sequence:
+  if round(best_score*100, 2)>=40 and db_user.current_stage == db_stage.stage_sequence:
     advance_stage(db_user, db)
   elif db_user.current_stage < db_stage.stage_sequence:
     raise HTTPException(status_code=400, detail='Stage requirements not met 1')
@@ -198,7 +225,7 @@ async def submit_phoneme_assessment(db: db_dependency, student_id: int,
 
     # Log and return response
   response_data = {
-      "score": round(score_test * 100, 2),
+      "score": round(best_score * 100, 2),
       "audio_url": upload_result["secure_url"],
       "audio_id": upload_result["public_id"],
       "phoneme_output": grouped_phonemes,
@@ -256,7 +283,7 @@ def check_stage_completion(student_id: int, stage: models.Stages, db:db_dependen
 
 #add logic for no more next stage/100% completion
 def advance_stage(user: models.User, db:db_dependency):
-  print(user.current_stage)
+  # print(user.current_stage)
   db_next = db.query(models.Stages).filter(models.Stages.stage_sequence > user.current_stage).order_by(
     models.Stages.stage_sequence
   ).first()
