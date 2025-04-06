@@ -258,7 +258,7 @@ async def submit_comprehension_assessment(db: db_dependency, submission: Compreh
   db.add(db_submission)
   db.commit()
   
-  if(submission.score > 60):
+  if(submission.score > 60) and db_user.current_stage == db_stage.stage_sequence:
     advance_stage(db_user, db)
   elif db_user.current_stage < db_stage.stage_sequence:
     raise HTTPException(status_code=400, detail='Stage requirements not met')
