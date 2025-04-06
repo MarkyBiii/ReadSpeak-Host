@@ -40,6 +40,9 @@ app.include_router(stagesRoutes.router)
 app.include_router(submissionRoutes.router)
 app.include_router(userRoutes.router)
 app.include_router(statRoutes.router)
+@app.get("/")
+async def root():
+    return {"message: API is running."}
 
 if __name__ == "__main__":
   import uvicorn
