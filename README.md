@@ -1,2 +1,2 @@
-# ReadSpeal-Host
+# ReadSpeak-Host
 This is for the ReadSpeak project.
