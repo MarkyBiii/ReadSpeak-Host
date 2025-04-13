@@ -371,7 +371,7 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
       "Emerging Reader": 1,
       "Developing Reader": 2,
       "Transitioning Reader": 3,
-      "Reading at Grade Level Reader": 4
+      "Reading at Grade Level": 4
     }
     
     if file.filename.endswith(".xlsx"):
@@ -384,6 +384,12 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
       level = row["Level"]
       gender = row["Gender"]
       password = str(row["Password"])
+        
+      if not (password.isdigit() and len(password) == 12):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid password for student '{name}'. Password must be exactly 11 digits."
+        )
       
       level_id = level_to_id.get(level, None)
       
