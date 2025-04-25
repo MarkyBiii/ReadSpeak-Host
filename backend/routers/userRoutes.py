@@ -466,6 +466,8 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
           media_type="application/pdf",
           headers=headers
     )
+  except HTTPException as http_exc:
+    raise http_exc
   except Exception as e:
     db.rollback()
     raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
