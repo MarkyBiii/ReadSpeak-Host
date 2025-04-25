@@ -1,4 +1,4 @@
-	from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response
 from dependencies import get_db
 import models
 from pydantic import BaseModel, EmailStr
