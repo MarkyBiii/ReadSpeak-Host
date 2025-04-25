@@ -376,11 +376,11 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
     }
     
     if file.filename.endswith(".xlsx"):
-      try:
-	      df = pd.read_excel(file.file, engine="openpyxl")
-      except zipfile.BadZipFile:
-	      raise HTTPException(
-		      status_code=400,
+		try:
+			df = pd.read_excel(file.file, engine="openpyxl")
+		except zipfile.BadZipFile:
+			raise HTTPException(
+			  status_code=400,
 		      detail="The uploaded Excel file is invalid or password protected. Pleas check the file."
 	      )
       except Exception as e:
