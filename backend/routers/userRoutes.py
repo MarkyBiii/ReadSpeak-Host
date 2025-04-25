@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response
+	from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response
 from dependencies import get_db
 import models
 from pydantic import BaseModel, EmailStr
@@ -377,12 +377,12 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
     
     if file.filename.endswith(".xlsx"):
       try:
-	df = pd.read_excel(file.file, engine="openpyxl")
+	      df = pd.read_excel(file.file, engine="openpyxl")
       except zipfile.BadZipFile:
-	raise HTTPException(
-	    status_code=400,
-	    detail="The uploaded Excel file is invalid or password protected. Pleas check the file."
-	)
+	      raise HTTPException(
+		      status_code=400,
+		      detail="The uploaded Excel file is invalid or password protected. Pleas check the file."
+	      )
       except Exception as e:
 	raise HTTPException(
 	    status_code=400,
