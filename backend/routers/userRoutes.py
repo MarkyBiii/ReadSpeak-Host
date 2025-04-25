@@ -26,6 +26,7 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from io import BytesIO
 import os
 import pytz
+import zipfile
 
 router = APIRouter(
     prefix="/user",
@@ -375,7 +376,18 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
     }
     
     if file.filename.endswith(".xlsx"):
-      df = pd.read_excel(file.file)
+      try:
+	df = pd.read_excel(file.file, engine="openpyxl")
+      except zipfile.BadZipFile:
+	raise HTTPException(
+	    status_code=400,
+	    detail="The uploaded Excel file is invalid or password protected. Pleas check the file."
+	)
+      except Exception as e:
+	raise HTTPException(
+	    status_code=400,
+	    detail=f"An error occurred while reading the Excel file: {str(e)}"
+	)
     elif file.filename.endswith(".csv"):
       df = pd.read_csv(file.file)
     new_students = []
