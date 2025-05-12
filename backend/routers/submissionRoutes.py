@@ -52,7 +52,8 @@ class PhonemeSubmission(BaseModel):
   assessment_title: str
   text_content: str
   # text_html: str
-  audio_url: str
+  student_audio_url: str
+  assessment_audio_url: str
   phoneme_content: List[str]
   phoneme_output: List[str]
   date_taken:datetime
@@ -365,14 +366,14 @@ async def get_specific_submission(sub_id: int, db: db_dependency):
     raise HTTPException(status_code=404, detail='Submission is not found')
   date_taken_ph = history.date_taken.astimezone(philippine_timezone)
   result = PhonemeSubmission(student_id=history.student_id,  history_id=history.history_id, score=history.score, assessment_id=history.assessment_id,
-                             assessment_title=assessment.assessment_title, text_content=assessment.text_content, 
-                             audio_url=history.audio_url, phoneme_content=assessment.phoneme_content,
+                             assessment_title=assessment.assessment_title, text_content=assessment.text_content, assessment_audio_url=assessment.audio_url,
+                             student_audio_url=history.audio_url, phoneme_content=assessment.phoneme_content,
                             phoneme_output=history.phoneme_output, date_taken=date_taken_ph)
   return result
 
 @router.get("/users/{userId}/", response_model=list[StudentHistory])
 async def get_users_submission(userId: int, db: db_dependency):
-  history = db.query(models.AssessmentHistory).filter(models.AssessmentHistory.student_id == userId).all()
+  history = db.query(models.AssessmentHistory).filter(models.AssessmentHistory.student_id == userId).order_by(models.AssessmentHistory.date_taken.desc()).all()
   if not history:
     raise HTTPException(status_code=404, detail='No submissions found')
   result =[]

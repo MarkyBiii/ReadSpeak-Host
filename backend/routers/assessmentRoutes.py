@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile,Form, File
 from phoneme import wordOffsetGet, textToPhoneme, audioToPhoneme, groupPhonemes, processor, processor2, model, model2, sr
 from dependencies import get_db
 import models
 from pydantic import BaseModel
 from typing import List, Optional, Annotated 
 from sqlalchemy.orm import Session
+import cloudinary
+import cloudinary.uploader
 
 class Assessment(BaseModel):
   title: str
@@ -12,7 +14,7 @@ class Assessment(BaseModel):
   html_text: str
   phoneme_text: List
   teacher_id: int
-  assessment_type: int 
+  assessment_type: int
 
 class ComprehensionChoices(BaseModel):
   choice_id: Optional[int] = 0
@@ -51,9 +53,34 @@ router = APIRouter(
 db_dependency = Annotated[Session, Depends(get_db)]
 
 @router.post("/phoneme")
-async def create_phoneme_assessment(assessment: Assessment, db: db_dependency):
-  assessment.phoneme_text, raw_phones = textToPhoneme(assessment.input_text)
-  db_question = models.PronunciationAssessment(assessment_title = assessment.title, text_content = assessment.input_text, text_html = assessment.html_text, phoneme_content = assessment.phoneme_text, assessment_type = assessment.assessment_type, raw_phoneme_content = raw_phones, teacher_id = assessment.teacher_id)
+async def create_phoneme_assessment(
+  db: db_dependency, 
+  title: str = Form(...),
+  input_text: str = Form(...),
+  html_text: str = Form(...),
+  teacher_id: int = Form(...),
+  assessment_type: int = Form(...), 
+  audio_file: Optional[UploadFile] = File(None)):
+  
+  phoneme_text, raw_phones = textToPhoneme(input_text)
+  audio_url = None
+  audio_public_id = None
+  
+  if(audio_file):
+    upload_result = cloudinary.uploader.upload(audio_file.file, resource_type="auto")
+    audio_url = upload_result["secure_url"]
+    audio_public_id = upload_result["public_id"]
+    
+  db_question = models.PronunciationAssessment(assessment_title = title, 
+                                               text_content = input_text, 
+                                               text_html = html_text, 
+                                               phoneme_content = phoneme_text, 
+                                               assessment_type = assessment_type, 
+                                               raw_phoneme_content = raw_phones, 
+                                               teacher_id = teacher_id, 
+                                               audio_url = audio_url,
+                                               audio_public_id = audio_public_id)
+
   db.add(db_question)
   db.commit()
   # db.refresh(db_question)
@@ -183,18 +210,36 @@ async def get_comprehension_assessments_of_type(type_id: int, db: db_dependency)
   
 
 @router.put("/edit/{assessment_id}")
-async def edit_assessment(assessment_id: int, assessment_update: Assessment, db: db_dependency):
-  assessment_update.phoneme_text, raw_phones = textToPhoneme(assessment_update.input_text)
+async def edit_assessment(
+  db: db_dependency, 
+  assessment_id: int, 
+  title: str = Form(...),
+  input_text: str = Form(...),
+  html_text: str = Form(...),
+  assessment_type: int = Form(...), 
+  audio_file: Optional[UploadFile] = File(None)):
+  phoneme_text, raw_phones = textToPhoneme(input_text)
+  audio_url = None
+  audio_public_id = None
+  
   db_assessment = db.query(models.PronunciationAssessment).filter(models.PronunciationAssessment.assessment_id == assessment_id).first()
   if not db_assessment:
     raise HTTPException(status_code=404, detail='Assessment is not found')
-  db_assessment.assessment_title = assessment_update.title
+  if(audio_file):
+    upload_result = cloudinary.uploader.upload(audio_file.file, resource_type="auto")
+    if(upload_result):
+        cloudinary.uploader.destroy(db_assessment.audio_public_id, resource_type="video")
+    audio_url = upload_result["secure_url"]
+    audio_public_id = upload_result["public_id"]
+    db_assessment.audio_public_id = audio_public_id
+    db_assessment.audio_url = audio_url
+  db_assessment.assessment_title = title
   db_assessment.raw_phoneme_content = raw_phones
-  db_assessment.text_content = assessment_update.input_text
-  db_assessment.phoneme_content = assessment_update.phoneme_text
-  db_assessment.assessment_type = assessment_update.assessment_type
-  db_assessment.text_html = assessment_update.html_text
-  db_assessment.assessment_type = assessment_update.assessment_type
+  db_assessment.text_content = input_text
+  db_assessment.phoneme_content = phoneme_text
+  db_assessment.assessment_type = assessment_type
+  db_assessment.text_html = html_text
+  db_assessment.assessment_type = assessment_type
   db.commit()
   
 @router.put("/delete/{assessment_id}")
@@ -207,6 +252,7 @@ async def delete_assessment(assessment_id: int, db: db_dependency):
 
   if not db_assessment:
     raise HTTPException(status_code=404, detail='Assessment is not found')
+  cloudinary.uploader.destroy(db_assessment.audio_public_id, resource_type="video")
   db.delete(db_assessment)
   db.commit()
 

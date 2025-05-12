@@ -50,6 +50,8 @@ class PronunciationAssessment(Base):
     phoneme_content = Column(ARRAY(String, dimensions=1), index = True)
     teacher_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
     assessment_type = Column(Integer, ForeignKey("pronunciation_assessment_types.type_id"), nullable=True)
+    audio_url = Column(String, index=True, nullable=True)
+    audio_public_id = Column(String, index=True, nullable=True)
     
 
 class PronunciationAssessmentType(Base):
@@ -128,6 +130,7 @@ class AssessmentHistory(Base):
     audio_public_id = Column(String, index=True)
     stage_id = Column(Integer, ForeignKey("stages.stage_id", ondelete="CASCADE"), nullable=True)
     duration = Column(Float, index=True)
+    assessment = relationship("PronunciationAssessment", backref="assessment_histories")
 
 class ComprehensionAssessmentHistory(Base):
     __tablename__ = 'comprehension_assessment_history'
@@ -145,3 +148,6 @@ class ExpiredTokens(Base):
     
     token_id = Column(Integer, primary_key = True, index = True)
     token_string = Column(String, index=True)
+
+
+    

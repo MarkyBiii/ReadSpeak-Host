@@ -27,6 +27,7 @@ from io import BytesIO
 import os
 import pytz
 import zipfile
+import re
 
 router = APIRouter(
     prefix="/user",
@@ -376,43 +377,68 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
     }
     
     if file.filename.endswith(".xlsx"):
-		try:
-			df = pd.read_excel(file.file, engine="openpyxl")
-		except zipfile.BadZipFile:
-			raise HTTPException(
-			  status_code=400,
-		      detail="The uploaded Excel file is invalid or password protected. Pleas check the file."
-	      )
+      try:
+        df = pd.read_excel(file.file, engine="openpyxl")
+      except zipfile.BadZipFile:
+          raise HTTPException(
+              status_code=400,
+              detail="The uploaded Excel file is invalid or password protected. Please check the file."
+          )
       except Exception as e:
-	raise HTTPException(
-	    status_code=400,
-	    detail=f"An error occurred while reading the Excel file: {str(e)}"
-	)
+        raise HTTPException(
+            status_code=400,
+            detail=f"An error occurred while reading the Excel file: {str(e)}"
+        )
     elif file.filename.endswith(".csv"):
       df = pd.read_csv(file.file)
+    df = df[df["Name"].notna()]
+    errors =[]
     new_students = []
     for index, row in df.iterrows():
       name = row["Name"]
       level = row["Level"]
       gender = row["Gender"]
-      password = str(row["Password"])
-        
-      if not (password.isdigit() and len(password) == 12):
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid password for student '{name}'. Password must be exactly 11 digits."
-        )
+      email_raw = row["LRN"]
+      password = row["Password"]
+      email = str(email_raw).strip().split('.')[0] if isinstance(email_raw, float) else str(email_raw).strip()
+
+      row_errors = []
+      # print(len(password))
+      # print(password)
+      if not email.isdigit() or len(email.strip()) != 12:
+        row_errors.append(f"Invalid LRN for student '{name}' must be exactly 12 digits")
+
       
       level_id = level_to_id.get(level, None)
       
-      if level_id is None:
-        raise HTTPException(status_code=400, detail=f"Invalid level '{level}' for student '{name}'")
+      password_pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])[\S]{8,16}$'
+
+      if pd.isna(password) or str(password).strip() == "":
+        row_errors.append(f"Missing Password for student '{name}' ")
+      elif not re.match(password_pattern, str(password)):
+        row_errors.append(
+            f"Invalid Password for student '{name}'. Password must be 8–16 characters long, with at least one uppercase letter, one lowercase letter, one number, and one special character."
+        )
       
-      email = f"{name.lower().replace(' ','_')}@readspeak.com"
-      
+      if pd.isna(gender) or str(gender).strip() == "":
+        row_errors.append(f"Missing Gender for student '{name}' ")
+
+      if pd.isna(level) or str(level).strip() == "":
+        row_errors.append(f"Missing Level for student '{name}'")
+      elif level not in level_to_id:
+        row_errors.append(f"Invalid Level '{level}' for student '{name}'")
       #if duplicate
       if db.query(models.User).filter(models.User.email == email).first():
-        email = f"{name.lower().replace(' ', '_')}{secrets.token_hex(2)}@readspeak.com"
+        row_errors.append(f"Duplicate LRN for student '{name}' ")
+      
+      if row_errors:
+        errors.extend(row_errors)
+        continue  # Skip this row if it had errors
+      
+      # email = f"{name.lower().replace(' ','_')}@readspeak.com"
+      
+      
+      
         
       db_students = models.User(
         name = name,
@@ -433,8 +459,14 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
       print(f"Student data: {student_response_data}") #Debug print
       new_students.append(StudentResponse(name=name, email=email, password=password, level=level_id, gender=gender))
       
+    
+    if errors:
+      db.rollback()
+      raise HTTPException(
+        status_code=400,
+        detail=" ❌ " + " ❌ ".join(errors)
+      )
     db.commit()
-
     output = BytesIO()
     frame_table = Frame(50, 50, letter[0] - 100, letter[1] - 150)
 
@@ -447,7 +479,7 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
 
     page_template = PageTemplate('myTemplate', frames=[frame_table], onPage=add_footer)
     doc = BaseDocTemplate(output, pagesize=letter, pageTemplates=page_template)
-    data = [["Name", "Email", "Password"]]
+    data = [["Name", "Username/LRN", "Password"]]
     for student in new_students:
       data.append([student.name, student.email, student.password])
     table = Table(data)
@@ -478,8 +510,12 @@ async def upload_students(section_id: int, db: db_dependency, file: UploadFile =
           media_type="application/pdf",
           headers=headers
     )
-  except HTTPException as http_exc:
-    raise http_exc
+  
+  
+  except HTTPException as http_err:
+        # Let HTTPExceptions pass through correctly
+        db.rollback()
+        raise http_err
   except Exception as e:
     db.rollback()
     raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
@@ -599,3 +635,15 @@ async def get_students(db:db_dependency):
     current_stage = student.current_stage-1 if student.current_stage is not None else 0
     result.append(StudentList(student_id=student.user_id, student_email=student.email, student_name=student.name, gender=student.gender, level_id=level.type_id, level_name=level.type_name, section_id=student.section_id, total_stages=total_stages, current_stage=current_stage))
   return result
+
+@router.put("/password/change/{userId}")
+async def change_password(userId: int, new_pass: str, db: db_dependency):
+  student = db.query(models.User).filter(models.User.user_id == userId).first()
+  
+  if not student:
+    raise HTTPException(status_code=404, detail='Students is not found')
+  
+  student.hashed_password = pwd_context.hash(new_pass)
+  student.first_login = False
+  db.commit()
+   

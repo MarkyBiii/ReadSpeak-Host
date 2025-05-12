@@ -97,8 +97,16 @@ async def edit_stage(levelReq:int,stage_update: List[StageCreate], db:db_depende
     db_stage = db.query(models.Stages).filter(models.Stages.stage_id == stages).first()
     db.delete(db_stage)
     db.commit()
+  student_progress = db.query(models.User).filter(models.User.level == levelReq).all()
+  current_stage_count = db.query(models.Stages).filter(models.Stages.level_requirement == levelReq).count()
+  for progress in student_progress:
+      if progress.current_stage > current_stage_count:
+          progress.current_stage = current_stage_count
+      elif progress.current_stage != 1:  # Optionally reset if stages are reordered/deleted
+          progress.current_stage = 1
+      db.add(progress)
   db.commit()
-  return("Stage Edited")
+  return("Stage Edited and Student Progress Updated")
 
 @router.get("/assessment/pronunciation/{stageId}")
 async def get_stage_assessment_pronunciation(stageId: int, db:db_dependency):
@@ -138,9 +146,9 @@ async def get_student_stage_progress(student_id: int, db: db_dependency):
   # Get all stages for the student's level
   all_stages = db.query(models.Stages).filter(models.Stages.level_requirement == level_id).order_by(models.Stages.stage_sequence).all()
   # Get all pronunciation attempts
-  pronunciation_attempts = db.query(models.AssessmentHistory).filter(models.AssessmentHistory.student_id == student_id).all()
+  pronunciation_attempts = db.query(models.AssessmentHistory).filter(models.AssessmentHistory.student_id == student_id).order_by(models.AssessmentHistory.date_taken.desc()).all()
   # Get all comprehension attempts
-  comprehension_attempts = db.query(models.ComprehensionAssessmentHistory).filter(models.ComprehensionAssessmentHistory.student_id == student_id).all()
+  comprehension_attempts = db.query(models.ComprehensionAssessmentHistory).filter(models.ComprehensionAssessmentHistory.student_id == student_id).order_by(models.ComprehensionAssessmentHistory.date_taken.desc()).all()
   # Combine attempts and group by stage
   all_attempts = []
   for attempt in pronunciation_attempts:
