@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from openpyxl.styles import Font, Alignment
 from io import BytesIO
 import pytz
+import math
 
 router = APIRouter(
     prefix="/stats",
@@ -274,6 +275,9 @@ async def get_students_grouped_by_gender(db: db_dependency):
 
 @router.get("/download")
 async def get_average_score_gender_excel(db: db_dependency):
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.utils import get_column_letter
+
     sections = db.query(models.Sections).all()
     genders = ["Male", "Female", "Total"]
     results = []
@@ -316,24 +320,104 @@ async def get_average_score_gender_excel(db: db_dependency):
 
     workbook = openpyxl.Workbook()
     sheet = workbook.active
+    sheet.title = "ReadSpeak Report"
 
-    # Add table headers
-    sheet["A1"] = "Section"
-    sheet["B1"] = "Gender"
-    sheet["C1"] = "Student Count"
-    sheet["D1"] = "Pronunciation Average"
-    sheet["E1"] = "Comprehension Average"
+    # === Style helpers ===
+    title_font = Font(size=14, bold=True)
+    header_font = Font(size=12, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+    center_align = Alignment(horizontal="center", vertical="center")
+    border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
 
+    # === Title ===
+    sheet.merge_cells("A1:E1")
+    sheet["A1"] = "ReadSpeak System - Student Performance Report"
+    sheet["A1"].font = title_font
+    sheet["A1"].alignment = center_align
+
+    # === Subtitle ===
+    sheet.merge_cells("A2:E2")
+    generated_on = datetime.now(pytz.timezone("Asia/Manila")).strftime("%B %d, %Y – %I:%M %p")
+    sheet["A2"] = f"Generated on {generated_on}"
+    sheet["A2"].alignment = Alignment(horizontal="right")
+
+    # === Table Headers ===
+    headers = ["Section", "Gender", "Student Count", "Pronunciation Average", "Comprehension Average"]
+    sheet.append(headers)
+    for col_num, header in enumerate(headers, 1):
+        cell = sheet.cell(row=3, column=col_num)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_align
+        cell.border = border
+        column_letter = get_column_letter(col_num)
+        sheet.column_dimensions[column_letter].width = 24
+
+    # === Table Data ===
     for i, row in enumerate(results):
-        sheet[f"A{i+2}"] = row["section_name"]
-        sheet[f"B{i+2}"] = row["gender"]
-        sheet[f"C{i+2}"] = row["student_count"]
-        sheet[f"D{i+2}"] = row["pronunciation_average"]
-        sheet[f"E{i+2}"] = row["comprehension_average"]
+        data_row = [
+            row["section_name"],
+            row["gender"],
+            row["student_count"],
+            row["pronunciation_average"],
+            row["comprehension_average"]
+        ]
+        sheet.append(data_row)
+        for col_num in range(1, 6):
+            cell = sheet.cell(row=4 + i, column=col_num)
+            cell.alignment = center_align
+            cell.border = border
 
-    # Create bar chart
+    # === Chart Data Below Table ===
+    chart_data_start = len(results) + 9
+    # print(chart_data_start)
+    genders_chart = ["Male", "Female", "Total"]
+    results_chart = []
+
+    for gender in genders_chart:
+        if gender != "Total":
+            pronunciation_avg = db.query(func.avg(models.AssessmentHistory.score)).join(
+                models.User, models.User.user_id == models.AssessmentHistory.student_id
+            ).filter(models.User.gender == gender).scalar()
+
+            comprehension_avg = db.query(func.avg(models.ComprehensionAssessmentHistory.score)).join(
+                models.User, models.User.user_id == models.ComprehensionAssessmentHistory.student_id
+            ).filter(models.User.gender == gender).scalar()
+        else:
+            pronunciation_avg = db.query(func.avg(models.AssessmentHistory.score)).scalar()
+            comprehension_avg = db.query(func.avg(models.ComprehensionAssessmentHistory.score)).scalar()
+        results_chart.append({
+            "gender": gender,
+            "pronunciation_average": round(pronunciation_avg, 2) if pronunciation_avg is not None else 0,
+            "comprehension_average": round(comprehension_avg, 2) if comprehension_avg is not None else 0
+        })
+
+    # Chart headers
+    sheet[f"A{chart_data_start - 1}"] = "Gender"
+    sheet[f"B{chart_data_start - 1}"] = "Pronunciation Average"
+    sheet[f"C{chart_data_start - 1}"] = "Comprehension Average"
+
+    sheet.merge_cells(f"A{chart_data_start-3}:B{chart_data_start-3}")
+    sheet[f"A{chart_data_start-3}"] = "Grade 3 Average(%) Performance by Gender"
+    sheet[f"A{chart_data_start-3}"].font = title_font
+    # sheet[f"A{chart_data_start-3}"].alignment = center_align
+    
+    # Chart data
+    for i, row in enumerate(results_chart):
+        sheet[f"A{chart_data_start + i}"] = row["gender"]
+        sheet[f"B{chart_data_start + i}"] = row["pronunciation_average"]
+        sheet[f"C{chart_data_start + i}"] = row["comprehension_average"]
+
+    # Create the bar chart
     chart = BarChart()
-    chart.title = "Overall (%) of Reading Fluency and Comprehension in English"
+    chart.title = "Average(%) Performance by Gender\n"
+    # chart.y_axis.scaling.max = 100
+    # chart.y_axis.scaling.min = 0
+    # chart.dataLabels = DataLabelList(showVal=True)
+    # chart.legend.position = 'b'
     chart.y_axis.delete = False
     chart.x_axis.delete = False
     chart.y_axis.scaling.max = 100 
@@ -349,63 +433,133 @@ async def get_average_score_gender_excel(db: db_dependency):
     chart.legend = Legend()
     chart.legend.position = 'b'
     chart.legend.overlay = False
+    chart.title.overlay = False
+    chart.overlap = -20 
 
-    genders_chart = ["Male", "Female", "Total"]
-    results_chart = []
-    
-    for gender in genders_chart:
-        if gender != "Total":
-          pronunciation_avg = db.query(func.avg(models.AssessmentHistory.score)).join(
-              models.User, models.User.user_id == models.AssessmentHistory.student_id
-          ).filter(models.User.gender == gender).scalar()
-
-          comprehension_avg = db.query(func.avg(models.ComprehensionAssessmentHistory.score)).join(
-              models.User, models.User.user_id == models.ComprehensionAssessmentHistory.student_id
-          ).filter(models.User.gender == gender).scalar()
-        else:
-          pronunciation_avg = db.query(func.avg(models.AssessmentHistory.score)).scalar()
-          comprehension_avg = db.query(func.avg(models.ComprehensionAssessmentHistory.score)).scalar()
-        results_chart.append({
-            "gender": gender,
-            "pronunciation_average": round(pronunciation_avg, 2) if pronunciation_avg is not None else 0,
-            "comprehension_average": round(comprehension_avg, 2) if comprehension_avg is not None else 0
-        })
-    chart_data_start_row = len(results) + 5 #start below the table
-    sheet[f"A{chart_data_start_row-1}"] = "Gender"
-    sheet[f"B{chart_data_start_row-1}"] = "Pronunciation Average"
-    sheet[f"C{chart_data_start_row-1}"] = "Comprehension Average"
-    for i, row in enumerate(results_chart):
-        sheet[f"A{chart_data_start_row + i}"] = row["gender"]
-        sheet[f"B{chart_data_start_row + i}"] = row["pronunciation_average"]
-        sheet[f"C{chart_data_start_row + i}"] = row["comprehension_average"]
-    
-    data = Reference(sheet, min_col=2, min_row=chart_data_start_row-1, max_col=3, max_row=chart_data_start_row + len(results_chart) -1)
-    categories = Reference(sheet, min_col=1, min_row=chart_data_start_row, max_row=chart_data_start_row + len(results_chart) -1)
-
+    data = Reference(sheet, min_col=2, min_row=chart_data_start - 1, max_col=3, max_row=chart_data_start + 2)
+    categories = Reference(sheet, min_col=1, min_row=chart_data_start, max_row=chart_data_start + 2)
     chart.add_data(data, titles_from_data=True)
     chart.set_categories(categories)
+    chart.series[0].graphicalProperties.solidFill = "FF0000"
+    chart.series[1].graphicalProperties.solidFill = "FFFF00"
+    sheet.add_chart(chart, f"A{chart_data_start-1}")
+    
+    # === Charts per section ===
+    section_chart_start_row = chart_data_start + 18  # start below the first chart
+    chart_width = 4  # columns between each chart
+    chart_height_rows = 16
+    charts_per_row = 2
+    
+    # Adding chart header
+    chart_header_row = section_chart_start_row - 2  # Row above the first chart
+    sheet.merge_cells(f"A{chart_header_row}:B{chart_header_row}")
+    chart_header_cell = sheet[f"A{chart_header_row}"]
+    chart_header_cell.value = "Per Section Performance"
+    chart_header_cell.font = title_font
+    # chart_header_cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    sheet.add_chart(chart, f"A{chart_data_start_row-1}")
+    for idx, section in enumerate(sections):
+        chart_row = section_chart_start_row + (idx // charts_per_row) * chart_height_rows
+        chart_col = (idx % charts_per_row) * chart_width + 1
+        chart_anchor = f"{get_column_letter(chart_col)}{chart_row}"
 
-    generation_date = datetime.now(pytz.timezone("Asia/Manila")).strftime("%Y-%m-%d %H:%M:%S PHT")
-    notice_text = f"Generation Notice: This report was automatically generated by the ReadSpeak system on {generation_date}."
+        # Fetch per-gender averages
+        section_gender_averages = []
+        for gender in ["Male", "Female", "Total"]:
+            if gender != "Total":
+                pronunciation_avg = db.query(func.avg(models.AssessmentHistory.score)).join(
+                    models.User, models.User.user_id == models.AssessmentHistory.student_id
+                ).filter(models.User.gender == gender, models.User.section_id == section.section_id).scalar()
 
-    # Find the row below the chart
-    notice_row = chart_data_start_row + len(results_chart) + 2 # Add some space
-    sheet[f"A33"] = notice_text
+                comprehension_avg = db.query(func.avg(models.ComprehensionAssessmentHistory.score)).join(
+                    models.User, models.User.user_id == models.ComprehensionAssessmentHistory.student_id
+                ).filter(models.User.gender == gender, models.User.section_id == section.section_id).scalar()
+            else:
+                pronunciation_avg = db.query(func.avg(models.AssessmentHistory.score)).join(
+                    models.User, models.User.user_id == models.AssessmentHistory.student_id
+                ).filter(models.User.section_id == section.section_id).scalar()
 
-    # Apply styling to the notice cell
-    notice_cell = sheet[f"A33"]
-    notice_cell.font = Font(size=10, italic=True)
-    notice_cell.alignment = Alignment(horizontal='left')
+                comprehension_avg = db.query(func.avg(models.ComprehensionAssessmentHistory.score)).join(
+                    models.User, models.User.user_id == models.ComprehensionAssessmentHistory.student_id
+                ).filter(models.User.section_id == section.section_id).scalar()
 
-    # Save the Excel file to a BytesIO object
-    excel_file = BytesIO()
-    workbook.save(excel_file)
-    excel_file.seek(0)
+            section_gender_averages.append({
+                "gender": gender,
+                "pronunciation_average": round(pronunciation_avg, 2) if pronunciation_avg is not None else 0,
+                "comprehension_average": round(comprehension_avg, 2) if comprehension_avg is not None else 0
+            })
 
-    # Return the Excel file as a response
+        # Write data to cells
+        data_start_row = chart_row + 2
+        sheet[f"{get_column_letter(chart_col)}{data_start_row - 1}"] = "Gender"
+        sheet[f"{get_column_letter(chart_col + 1)}{data_start_row - 1}"] = "Pronunciation Average"
+        sheet[f"{get_column_letter(chart_col + 2)}{data_start_row - 1}"] = "Comprehension Average"
+
+        for i, row in enumerate(section_gender_averages):
+            sheet.cell(row=data_start_row + i, column=chart_col, value=row["gender"])
+            sheet.cell(row=data_start_row + i, column=chart_col + 1, value=row["pronunciation_average"])
+            sheet.cell(row=data_start_row + i, column=chart_col + 2, value=row["comprehension_average"])
+
+        # === Chart styling (matches first chart) ===
+        chart = BarChart()
+        chart.title = f"{section.section_name} Performance by Gender\n"
+        chart.y_axis.scaling.max = 100
+        chart.y_axis.scaling.min = 0
+        chart.y_axis.majorUnit = 10
+        chart.y_axis.majorGridlines = None
+        chart.x_axis.majorGridlines = None
+        chart.dataLabels = DataLabelList()
+        chart.dataLabels.showVal = True
+        chart.dataLabels.showSerName = False
+        chart.dataLabels.showCatName = False
+        chart.dataLabels.showLegendKey = False
+        chart.legend = Legend()
+        chart.legend.position = 'b'
+        chart.legend.overlay = False
+        chart.title.overlay = False
+        chart.overlap = -20
+        chart.y_axis.delete = False
+        chart.x_axis.delete = False
+
+        # Add data
+        data = Reference(sheet, min_col=chart_col + 1, min_row=data_start_row - 1, max_col=chart_col + 2, max_row=data_start_row + 2)
+        categories = Reference(sheet, min_col=chart_col, min_row=data_start_row, max_row=data_start_row + 2)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(categories)
+
+        # Bar colors
+        chart.series[0].graphicalProperties.solidFill = "FF0000"  # red for pronunciation
+        chart.series[1].graphicalProperties.solidFill = "FFFF00"  # yellow for comprehension
+
+        # Place chart
+        sheet.add_chart(chart, chart_anchor)
+
+    # Dimensions
+    charts_per_row = 2
+    chart_height = 16  # estimated vertical space used per chart
+    start_row = chart_data_start + 5  # space after first gender chart
+
+    # Calculate max vertical position from rows of charts
+    num_charts = len(sections)
+    rows_of_charts = math.ceil(num_charts / charts_per_row)
+    last_chart_row = start_row + (rows_of_charts * chart_height)
+
+    # Footer
+    footer_row = last_chart_row + 15
+    sheet.merge_cells(f"A{footer_row}:E{footer_row}")
+    footer_cell = sheet[f"A{footer_row}"]
+    footer_cell.value = f"Notice: This report was automatically generated by the ReadSpeak system."
+    footer_cell.font = Font(size=10, italic=True)
+    footer_cell.alignment = Alignment(horizontal="left")
+
+    # Save and respond
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
     headers = {
-        'Content-Disposition': 'attachment; filename="ReadSpeak Analytics.xlsx"'
+        'Content-Disposition': 'attachment; filename="ReadSpeak_Report.xlsx"'
     }
-    return Response(content=excel_file.read(), headers=headers, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    return Response(content=output.read(), headers=headers, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    
