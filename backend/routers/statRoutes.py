@@ -139,20 +139,28 @@ async def get_section_completion_rate(section_id: int, db: db_dependency):
 async def get_level_score_trends(level_id: int, db: db_dependency):
     pronunciation_query = db.query(
         models.AssessmentHistory.date_taken,
-        models.AssessmentHistory.score
+        models.AssessmentHistory.score,
+        models.User.section_id
     ).join(models.User, models.User.user_id == models.AssessmentHistory.student_id).filter(models.User.level == level_id)
 
     comprehension_query = db.query(
         models.ComprehensionAssessmentHistory.date_taken,
-        models.ComprehensionAssessmentHistory.score
+        models.ComprehensionAssessmentHistory.score,
+        models.User.section_id
     ).join(models.User, models.User.user_id == models.ComprehensionAssessmentHistory.student_id).filter(models.User.level == level_id)
 
     pronunciation_scores = pronunciation_query.order_by(models.AssessmentHistory.date_taken).all()
     comprehension_scores = comprehension_query.order_by(models.ComprehensionAssessmentHistory.date_taken).all()
 
-    pronunciation_data = [{"date": date.isoformat(), "score": score} for date, score in pronunciation_scores]
-    comprehension_data = [{"date": date.isoformat(), "score": score} for date, score in comprehension_scores]
+    pronunciation_data = [
+        {"date": date.isoformat(), "score": score, "section_id": section_id}
+        for date, score, section_id in pronunciation_scores
+    ]
 
+    comprehension_data = [
+        {"date": date.isoformat(), "score": score, "section_id": section_id}
+        for date, score, section_id in comprehension_scores
+    ]
     return {
         "pronunciation_scores": pronunciation_data,
         "comprehension_scores": comprehension_data

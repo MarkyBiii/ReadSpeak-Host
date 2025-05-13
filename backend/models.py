@@ -148,6 +148,3 @@ class ExpiredTokens(Base):
     
     token_id = Column(Integer, primary_key = True, index = True)
     token_string = Column(String, index=True)
-
-
-    

@@ -119,6 +119,10 @@ class StudentResponse(BaseModel):
     level: int
     gender: Optional[str] = None
 
+    
+class PasswordChangeRequest(BaseModel):
+    password: str
+
 # async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
 #   try:
 #     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -637,13 +641,13 @@ async def get_students(db:db_dependency):
   return result
 
 @router.put("/password/change/{userId}")
-async def change_password(userId: int, new_pass: str, db: db_dependency):
+async def change_password(userId: int, request: PasswordChangeRequest, db: db_dependency):
   student = db.query(models.User).filter(models.User.user_id == userId).first()
   
   if not student:
     raise HTTPException(status_code=404, detail='Students is not found')
   
-  student.hashed_password = pwd_context.hash(new_pass)
+  student.hashed_password = pwd_context.hash(request.password)
   student.first_login = False
   db.commit()
    
